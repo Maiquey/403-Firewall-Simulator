@@ -105,12 +105,13 @@ def main():
                 ACK = int(flag_bits[3])
                 RST = int(flag_bits[5])
                 FIN = int(flag_bits[7])
+
+                half_connection_key = (destination_address, destination_port, source_address)
+                full_connection = (destination_address, destination_port, source_address, source_port)
                 # SYN msg
                 if SYN == 1 and ACK == 0:
                     # add half-open connection
                     # block if flooded
-                    half_connection_key = (destination_address, destination_port, source_address)
-                    full_connection = (destination_address, destination_port, source_address, source_port)
                     if flooded:
                         print("yes")
                     elif full_connection in open_connections:
@@ -137,7 +138,27 @@ def main():
                 # ACK
                 elif SYN == 0 and ACK == 1:
                     # ACK msg, make full from half-connection
-                    # check flooding
+                    if full_connection in open_connections:
+                        print("no")
+                    elif half_connection_key in half_open_connections:
+                        source_ports = half_open_connections[half_connection_key]
+                        if source_port in source_ports:
+                            #remove it from the list of ports
+                            source_ports.remove(source_port)
+                            half_open_connections[half_connection_key] = source_ports
+                            #add full connection
+                            open_connections.append(full_connection)
+                            # check flooding
+                            if len(source_ports) == 9 and flooding:
+                                all_below_ten = True
+                                for key, ports in half_open_connections:
+                                    if len(ports) == 10:
+                                        all_below_ten = False
+                                if all_below_ten:
+                                    flooding = False
+                            print("no")
+                    else:
+                        print("no")
                 # RST/FIN
                 elif RST == 1 or FIN == 1:
                     # cut the connection half or full
