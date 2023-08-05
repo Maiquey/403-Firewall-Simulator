@@ -24,6 +24,9 @@ def read_packets(filename):
 
     return packets
 
+def myPrint(string):
+    print(string)
+
 def main():
     if len(sys.argv) != 3:
         print("Use: python3 filter.py <option> <filename>")
@@ -100,7 +103,7 @@ def main():
                 destination_port = ''.join(f'{byte:08b}' for byte in packet[22:24])
                 # sequence number packet[24:28]
                 # ack number packet[28:32]
-                flag_bits = ''.join(f'{byte:08b}' for byte in packet[33])
+                flag_bits = (f'{packet[33]:08b}')
                 SYN = int(flag_bits[6])
                 ACK = int(flag_bits[3])
                 RST = int(flag_bits[5])
@@ -108,38 +111,78 @@ def main():
 
                 half_connection_key = (destination_address, destination_port, source_address)
                 full_connection = (destination_address, destination_port, source_address, source_port)
+
+                # RST/FIN
+                if RST == 1 or FIN == 1:
+                    # cut the connection half or full
+                    # reverse the source and destination because FIN and RST come from the other side
+                    half_connection_key = (source_address, source_port, destination_address)
+                    full_connection = (source_address, source_port, destination_address, destination_port)
+                    if full_connection in open_connections:
+                        open_connections.remove(full_connection)
+                        print("no")
+                        myPrint(str(i) + " - " + "removed full connection")
+                    elif half_connection_key in half_open_connections:
+                        destination_ports = half_open_connections[half_connection_key]
+                        if destination_port in destination_ports:
+                            destination_ports.remove(destination_port)
+                            half_open_connections[half_connection_key] = destination_ports
+                            # check for flooding
+                            if len(destination_ports) == 9 and flooded:
+                                all_below_ten = True
+                                for key, ports in half_open_connections:
+                                    if len(ports) == 10:
+                                        all_below_ten = False
+                                if all_below_ten:
+                                    flooded = False
+                            print("no")
+                            myPrint(str(i) + " - " + "removed half connection")
+                        else:
+                            print("no")
+                            myPrint(str(i) + " - " + "no half-connection found")
+                    else:
+                        print("no")
+                        myPrint(str(i) + " - " + "no connection found")
                 # SYN msg
-                if SYN == 1 and ACK == 0:
+                elif SYN == 1 and ACK == 0:
                     # add half-open connection
                     # block if flooded
                     if flooded:
                         print("yes")
+                        myPrint(str(i) + " - " + "tried to send SYN when flooded")
                     elif full_connection in open_connections:
                         print("no")
+                        myPrint("duplicate open connection")
                     elif half_connection_key in half_open_connections:
                         source_ports = half_open_connections[half_connection_key]
                         if source_port in source_ports:
                             print("no")
+                            myPrint(str(i) + " - " + "duplicate half-open connection")
                         elif len(source_ports) == 10:
-                            flooding = True
+                            flooded = True
                             print("yes")
+                            myPrint(str(i) + " - " + "tried to open >10 connections")
                         else:
                             source_ports.append(source_port)
                             half_open_connections[half_connection_key] = source_ports
                             print("no")
+                            myPrint(str(i) + " - " + "half-open connection added")
                     else:
                         #create half connection
                         half_open_connections[half_connection_key] = [source_port]
                         print("no")
+                        myPrint(str(i) + " - " + "half-open connection added")
 
                 # SYN-ACK
                 elif SYN == 1 and ACK == 1:
                     print("no")
+                    myPrint(str(i) + " - " + "SYNC ACK")
                 # ACK
                 elif SYN == 0 and ACK == 1:
                     # ACK msg, make full from half-connection
                     if full_connection in open_connections:
                         print("no")
+                        myPrint(str(i) + " - " + "ACK but full connection already established")
                     elif half_connection_key in half_open_connections:
                         source_ports = half_open_connections[half_connection_key]
                         if source_port in source_ports:
@@ -149,44 +192,24 @@ def main():
                             #add full connection
                             open_connections.append(full_connection)
                             # check flooding
-                            if len(source_ports) == 9 and flooding:
+                            if len(source_ports) == 9 and flooded:
                                 all_below_ten = True
                                 for key, ports in half_open_connections:
                                     if len(ports) == 10:
                                         all_below_ten = False
                                 if all_below_ten:
-                                    flooding = False
+                                    flooded = False
                             print("no")
+                            myPrint(str(i) + " - " + "full connection established")
                     else:
                         print("no")
-                # RST/FIN
-                elif RST == 1 or FIN == 1:
-                    # cut the connection half or full
-                    if full_connection in open_connections:
-                        open_connections.remove(full_connection)
-                        print("no")
-                    elif half_connection_key in half_open_connections:
-                        source_ports = half_open_connections[half_connection_key]
-                        if source_port in source_ports:
-                            source_ports.remove(source_port)
-                            half_open_connections[half_connection_key] = source_ports
-                            # check for flooding
-                            if len(source_ports) == 9 and flooding:
-                                all_below_ten = True
-                                for key, ports in half_open_connections:
-                                    if len(ports) == 10:
-                                        all_below_ten = False
-                                if all_below_ten:
-                                    flooding = False
-                            print("no")
-                        else:
-                            print("no")
-                    else:
-                        print("no")
+                        myPrint(str(i) + " - " + "garbage ACK")
                 else:
                     print("no")
+                    myPrint(str(i) + " - " + "Not a SYN, ACK, FIN or RST")
             else:
                 print("no")
+                myPrint(str(i) + " - " + "Not a TCP msg")
             i += 1
     else:
         print("Invalid option")
