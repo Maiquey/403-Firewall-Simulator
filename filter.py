@@ -162,13 +162,32 @@ def main():
                 # RST/FIN
                 elif RST == 1 or FIN == 1:
                     # cut the connection half or full
-                    # check flooding
+                    if full_connection in open_connections:
+                        open_connections.remove(full_connection)
+                        print("no")
+                    elif half_connection_key in half_open_connections:
+                        source_ports = half_open_connections[half_connection_key]
+                        if source_port in source_ports:
+                            source_ports.remove(source_port)
+                            half_open_connections[half_connection_key] = source_ports
+                            # check for flooding
+                            if len(source_ports) == 9 and flooding:
+                                all_below_ten = True
+                                for key, ports in half_open_connections:
+                                    if len(ports) == 10:
+                                        all_below_ten = False
+                                if all_below_ten:
+                                    flooding = False
+                            print("no")
+                        else:
+                            print("no")
+                    else:
+                        print("no")
                 else:
                     print("no")
             else:
                 print("no")
             i += 1
-
     else:
         print("Invalid option")
 
