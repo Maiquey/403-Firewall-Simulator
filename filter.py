@@ -142,10 +142,7 @@ def main():
                 # SYN msg
                 elif SYN == 1 and ACK == 0:
                     # add half-open connection
-                    # block if flooded
-                    if flooded:
-                        print("yes")
-                        myPrint(str(i) + " - " + "tried to send SYN when flooded")
+
                     if full_connection in open_connections:
                         print("no")
                         myPrint("duplicate open connection")
@@ -155,7 +152,6 @@ def main():
                             print("no")
                             myPrint(str(i) + " - " + "duplicate half-open connection")
                         elif len(source_ports) == 10:
-                            flooded = True
                             print("yes")
                             myPrint(str(i) + " - " + "tried to open >10 connections")
                         else:
@@ -187,14 +183,6 @@ def main():
                             half_open_connections[half_connection_key] = source_ports
                             #add full connection
                             open_connections.append(full_connection)
-                            # check flooding
-                            if len(source_ports) == 9 and flooded:
-                                all_below_ten = True
-                                for key, ports in half_open_connections:
-                                    if len(ports) == 10:
-                                        all_below_ten = False
-                                if all_below_ten:
-                                    flooded = False
                             print("no")
                             myPrint(str(i) + " - " + "full connection established")
                     else:
