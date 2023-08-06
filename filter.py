@@ -56,16 +56,20 @@ def main():
     elif option == "-j":
         for packet in packets:
             if int(packet[9]) == 1:
-                destination_address = ''.join(f'{byte:08b}' for byte in packet[16:20])
-                # print(destination_address)
-                if destination_address == broadcast_address:
-                    print("yes")
-                if destination_address[0:24] == subnet_prefix:
-                    length = packet[2:4]
-                    length = int(''.join(f'{byte:08b}' for byte in packet[2:4]), 2)
-                    offset = int(''.join(f'{byte:08b}' for byte in packet[6:8])[3:], 2)*8 #cut off first 3 bits
-                    if offset + length > 65535:
+                icmp_type = int(packet[20])
+                if icmp_type == 8:
+                    destination_address = ''.join(f'{byte:08b}' for byte in packet[16:20])
+                    # print(destination_address)
+                    if destination_address == broadcast_address:
                         print("yes")
+                    if destination_address[0:24] == subnet_prefix:
+                        length = packet[2:4]
+                        length = int(''.join(f'{byte:08b}' for byte in packet[2:4]), 2)
+                        offset = int(''.join(f'{byte:08b}' for byte in packet[6:8])[3:], 2)*8 #cut off first 3 bits
+                        if offset + length > 65535:
+                            print("yes")
+                        else:
+                            print("no")
                     else:
                         print("no")
                 else:
@@ -92,7 +96,7 @@ def main():
         # the values attached to each key is a list of ports that are connected (or half-connected) on the source_address
         half_open_connections = {}
         open_connections = []
-        flooded = False
+        # flooded = False
 
         i = 1
         for packet in packets:
@@ -127,14 +131,6 @@ def main():
                         if destination_port in destination_ports:
                             destination_ports.remove(destination_port)
                             half_open_connections[half_connection_key] = destination_ports
-                            # check for flooding
-                            if len(destination_ports) == 9 and flooded:
-                                all_below_ten = True
-                                for key, ports in half_open_connections:
-                                    if len(ports) == 10:
-                                        all_below_ten = False
-                                if all_below_ten:
-                                    flooded = False
                             print("no")
                             myPrint(str(i) + " - " + "removed half connection")
                         else:
@@ -150,7 +146,7 @@ def main():
                     if flooded:
                         print("yes")
                         myPrint(str(i) + " - " + "tried to send SYN when flooded")
-                    elif full_connection in open_connections:
+                    if full_connection in open_connections:
                         print("no")
                         myPrint("duplicate open connection")
                     elif half_connection_key in half_open_connections:
