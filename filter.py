@@ -94,13 +94,15 @@ def main():
         # we can keep track of each counter in a dictionary. Each counter has a key (destination_address, destination_port, source_address)
         # so connections = {(destination_address, destination_port, source_address):[source_port]}
         # the values attached to each key is a list of ports that are connected (or half-connected) on the source_address
-        half_open_connections = {}
+        incoming_half_open_connections = {}
+        outgoing_half_open_connections = {}
         open_connections = []
         # flooded = False
 
         i = 1
         for packet in packets:
             if int(packet[9]) == 6:
+                incoming_packet = False
                 source_address = ''.join(f'{byte:08b}' for byte in packet[12:16])
                 destination_address = ''.join(f'{byte:08b}' for byte in packet[16:20])
                 source_port = ''.join(f'{byte:08b}' for byte in packet[20:22])
@@ -113,57 +115,109 @@ def main():
                 RST = int(flag_bits[5])
                 FIN = int(flag_bits[7])
 
+                if subnet_prefix == destination_address[0:24]:
+                    incoming_packet = True
+
                 half_connection_key = (destination_address, destination_port, source_address)
-                full_connection = (destination_address, destination_port, source_address, source_port)
+                source_connection_point = (source_address, source_port)
+                dest_connection_point = (destination_address, destination_port)
+                full_connection = frozenset([source_connection_point, dest_connection_point])
 
                 # RST/FIN
                 if RST == 1 or FIN == 1:
                     # cut the connection half or full
                     # reverse the source and destination because FIN and RST come from the other side
-                    half_connection_key = (source_address, source_port, destination_address)
-                    full_connection = (source_address, source_port, destination_address, destination_port)
                     if full_connection in open_connections:
                         open_connections.remove(full_connection)
                         print("no")
                         myPrint(str(i) + " - " + "removed full connection")
-                    elif half_connection_key in half_open_connections:
-                        destination_ports = half_open_connections[half_connection_key]
-                        if destination_port in destination_ports:
-                            destination_ports.remove(destination_port)
-                            half_open_connections[half_connection_key] = destination_ports
-                            print("no")
-                            myPrint(str(i) + " - " + "removed half connection")
+                    elif incoming_packet:
+                        if half_connection_key in incoming_half_open_connections:
+                            source_ports = incoming_half_open_connections[half_connection_key]
+                            if source_port in source_ports:
+                                source_ports.remove(source_port)
+                                incoming_half_open_connections[half_connection_key] = source_ports
+                                print("no")
+                                myPrint(str(i) + " - " + "removed incoming half connection")
+                            else:
+                                print("no")
+                                myPrint(str(i) + " - " + "no half-connection found")
                         else:
                             print("no")
-                            myPrint(str(i) + " - " + "no half-connection found")
+                            myPrint(str(i) + " - " + "no half-connection found 2")
                     else:
-                        print("no")
-                        myPrint(str(i) + " - " + "no connection found")
+                        if half_connection_key in outgoing_half_open_connections:
+                            source_ports = outgoing_half_open_connections[half_connection_key]
+                            if source_port in source_ports:
+                                source_ports.remove(source_port)
+                                outgoing_half_open_connections[half_connection_key] = source_ports
+                                print("no")
+                                myPrint(str(i) + " - " + "removed outgoing half connection")
+                            else:
+                                print("no")
+                                myPrint(str(i) + " - " + "no half-connection found")
+                        else:
+                            print("no")
+                            myPrint(str(i) + " - " + "no half-connection found 2")
+
+
+
+
+                    # elif half_connection_key in incoming_half_open_connections:
+                    #     source_ports = half_open_connections[half_connection_key]
+                    #     if source_port in source_ports:
+                    #         source_ports.remove(source_port)
+                    #         incoming_half_open_connections[half_connection_key] = source_ports
+                    #         print("no")
+                    #         myPrint(str(i) + " - " + "removed half connection")
+                    #     else:
+                    #         print("no")
+                    #         myPrint(str(i) + " - " + "no half-connection found")
+                    # elif half_connection_key in outgoing_half_open_connections:
+                    # else:
+                    #     print("no")
+                    #     myPrint(str(i) + " - " + "no connection found")
                 # SYN msg
                 elif SYN == 1 and ACK == 0:
                     # add half-open connection
-
                     if full_connection in open_connections:
                         print("no")
                         myPrint("duplicate open connection")
-                    elif half_connection_key in half_open_connections:
-                        source_ports = half_open_connections[half_connection_key]
-                        if source_port in source_ports:
-                            print("no")
-                            myPrint(str(i) + " - " + "duplicate half-open connection")
-                        elif len(source_ports) == 10:
-                            print("yes")
-                            myPrint(str(i) + " - " + "tried to open >10 connections")
+                    elif incoming_packet:
+                        if half_connection_key in incoming_half_open_connections:
+                            source_ports = incoming_half_open_connections[half_connection_key]
+                            if source_port in source_ports:
+                                print("no")
+                                myPrint(str(i) + " - " + "duplicate half-open connection")
+                            elif len(source_ports) == 10:
+                                print("yes")
+                                myPrint(str(i) + " - " + "tried to open >10 connections")
+                            else:
+                                source_ports.append(source_port)
+                                incoming_half_open_connections[half_connection_key] = source_ports
+                                print("no")
+                                myPrint(str(i) + " - " + "half-open connection added")
                         else:
-                            source_ports.append(source_port)
-                            half_open_connections[half_connection_key] = source_ports
+                            #create half connection
+                            incoming_half_open_connections[half_connection_key] = [source_port]
                             print("no")
                             myPrint(str(i) + " - " + "half-open connection added")
                     else:
-                        #create half connection
-                        half_open_connections[half_connection_key] = [source_port]
-                        print("no")
-                        myPrint(str(i) + " - " + "half-open connection added")
+                        if half_connection_key in outgoing_half_open_connections:
+                            source_ports = outgoing_half_open_connections[half_connection_key]
+                            if source_port in source_ports:
+                                print("no")
+                                myPrint(str(i) + " - " + "duplicate half-open connection")
+                            else:
+                                source_ports.append(source_port)
+                                outgoing_half_open_connections[half_connection_key] = source_ports
+                                print("no")
+                                myPrint(str(i) + " - " + "half-open connection added")
+                        else:
+                            #create half connection
+                            outgoing_half_open_connections[half_connection_key] = [source_port]
+                            print("no")
+                            myPrint(str(i) + " - " + "half-open connection added")
 
                 # SYN-ACK
                 elif SYN == 1 and ACK == 1:
@@ -175,19 +229,34 @@ def main():
                     if full_connection in open_connections:
                         print("no")
                         myPrint(str(i) + " - " + "ACK but full connection already established")
-                    elif half_connection_key in half_open_connections:
-                        source_ports = half_open_connections[half_connection_key]
-                        if source_port in source_ports:
-                            #remove it from the list of ports
-                            source_ports.remove(source_port)
-                            half_open_connections[half_connection_key] = source_ports
-                            #add full connection
-                            open_connections.append(full_connection)
+                    elif incoming_packet:
+                        if half_connection_key in incoming_half_open_connections:
+                            source_ports = incoming_half_open_connections[half_connection_key]
+                            if source_port in source_ports:
+                                #remove it from the list of ports
+                                source_ports.remove(source_port)
+                                incoming_half_open_connections[half_connection_key] = source_ports
+                                #add full connection
+                                open_connections.append(full_connection)
+                                print("no")
+                                myPrint(str(i) + " - " + "full connection established")
+                        else:
                             print("no")
-                            myPrint(str(i) + " - " + "full connection established")
+                            myPrint(str(i) + " - " + "garbage ACK")
                     else:
-                        print("no")
-                        myPrint(str(i) + " - " + "garbage ACK")
+                        if half_connection_key in outgoing_half_open_connections:
+                            source_ports = outgoing_half_open_connections[half_connection_key]
+                            if source_port in source_ports:
+                                #remove it from the list of ports
+                                source_ports.remove(source_port)
+                                outgoing_half_open_connections[half_connection_key] = source_ports
+                                #add full connection
+                                open_connections.append(full_connection)
+                                print("no")
+                                myPrint(str(i) + " - " + "full connection established")
+                        else:
+                            print("no")
+                            myPrint(str(i) + " - " + "garbage ACK")
                 else:
                     print("no")
                     myPrint(str(i) + " - " + "Not a SYN, ACK, FIN or RST")
