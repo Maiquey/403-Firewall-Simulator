@@ -24,8 +24,10 @@ def read_packets(filename):
 
     return packets
 
+# personal print function purely for testing and debugging
 def myPrint(string):
-    print(string)
+    # print(string)
+    test = 1
 
 def main():
     if len(sys.argv) != 3:
@@ -103,10 +105,10 @@ def main():
         for packet in packets:
             if int(packet[9]) == 6:
                 incoming_packet = False
-                source_address = ''.join(f'{byte:08b}' for byte in packet[12:16])
-                destination_address = ''.join(f'{byte:08b}' for byte in packet[16:20])
-                source_port = ''.join(f'{byte:08b}' for byte in packet[20:22])
-                destination_port = ''.join(f'{byte:08b}' for byte in packet[22:24])
+                source_address = hex(int(''.join(f'{byte:08b}' for byte in packet[12:16]), 2))
+                destination_address = hex(int(''.join(f'{byte:08b}' for byte in packet[16:20]), 2))
+                source_port = hex(int(''.join(f'{byte:08b}' for byte in packet[20:22]), 2))
+                destination_port = hex(int(''.join(f'{byte:08b}' for byte in packet[22:24]), 2))
                 # sequence number packet[24:28]
                 # ack number packet[28:32]
                 flag_bits = (f'{packet[33]:08b}')
@@ -115,7 +117,7 @@ def main():
                 RST = int(flag_bits[5])
                 FIN = int(flag_bits[7])
 
-                if subnet_prefix == destination_address[0:24]:
+                if subnet_prefix == ''.join(f'{byte:08b}' for byte in packet[16:20])[0:24]:
                     incoming_packet = True
 
                 half_connection_key = (destination_address, destination_port, source_address)
